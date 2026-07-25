@@ -68,6 +68,7 @@ jobs:
 
       - name: Count checked jobs
         id: count
+        working-directory: repo
         run: |
           count=$(python3 -m common.parse_checked_jobs < /tmp/issue_body.txt | wc -l)
           echo "Found $count checked job(s)."
