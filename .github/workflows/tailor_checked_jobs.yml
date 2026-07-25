@@ -108,8 +108,9 @@ jobs:
 
       - name: Commit job state to bruce-bot
         if: always()
+        working-directory: repo
         run: >-
-          repo/scripts/git_commit_and_push.sh
+          scripts/git_commit_and_push.sh
           "Mark checked jobs as considered (issue #${{ inputs.issue_number }})"
           job_state.json job_descriptions/ analytics/runs.jsonl all_keywords.txt
 
