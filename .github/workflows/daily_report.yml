@@ -6,15 +6,11 @@ name: Daily Job Pipeline (bruce-bot, inlined)
 # of private-repo minutes. bruce-bot's own copy of this workflow keeps only
 # workflow_dispatch as a manual fallback; this is now the real schedule.
 #
-# Known gap: bruce-bot's tailor_checked_jobs.yml/mark_applied.yml still run
-# in bruce-bot itself and share a `concurrency: bruce-bot-state-writer` group
-# there specifically to serialize pushes to shared state files (all_keywords.txt
-# is the one known to produce unresolvable merge conflicts, see
-# scripts/git_commit_and_push.sh's comments). Concurrency groups only
-# serialize within a single repo, so this workflow -- now running in a
-# different repo -- is no longer covered by that protection. Accepted risk;
-# a real conflict here needs manual resolution (git_commit_and_push.sh's
-# retry-rebase can't fix it, same as it couldn't before).
+# tailor_checked_jobs.yml/mark_applied.yml are now inlined here too
+# (2026-07-25), so the shared `bruce-bot-state-writer` concurrency group
+# below is real protection again -- all three state-writers reconverged on
+# this one repo, closing the cross-repo gap that existed while this
+# workflow was the only one moved over.
 #
 # Job logs here are public -- see this repo's README/CLAUDE.md before adding
 # any step that might print resume content, application details, or other
@@ -31,6 +27,10 @@ on:
 permissions:
   contents: read
   issues: write
+
+concurrency:
+  group: bruce-bot-state-writer
+  cancel-in-progress: false
 
 jobs:
   fetch:

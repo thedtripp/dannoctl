@@ -1,0 +1,76 @@
+name: Mark Applied Jobs (bruce-bot, inlined)
+
+# Inlined copy of bruce-bot's mark_applied.yml (2026-07-25) -- runs on
+# dannoctl's free public-repo Actions minutes instead of bruce-bot's billed
+# private minutes. bruce-bot's own copy is now a thin dispatcher on
+# issues:closed -- GitHub can't deliver that event to another repo directly,
+# so it does the "Ready to Apply --" title gate itself (cheap, avoids
+# triggering a run here at all for irrelevant issue closes) and just relays
+# the issue number.
+#
+# Shares the bruce-bot-state-writer concurrency group with daily_report.yml
+# and tailor_checked_jobs.yml, now that all three run in this repo again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "bruce-bot issue number that was closed"
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: bruce-bot-state-writer
+  cancel-in-progress: false
+
+jobs:
+  mark-applied:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Fetch issue body
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: |
+          gh issue view "${{ inputs.issue_number }}" --json body -q .body > /tmp/issue_body.txt
+
+      - name: Mark applied jobs in job state
+        env:
+          ISSUE_BODY_FILE: /tmp/issue_body.txt
+        run: ISSUE_BODY="$(cat "$ISSUE_BODY_FILE")" python3 mark_applied.py
+
+      - name: Commit job state
+        if: always()
+        run: >-
+          scripts/git_commit_and_push.sh
+          "Mark jobs applied from issue #${{ inputs.issue_number }}"
+          job_state.json analytics/runs.jsonl
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: python3 scripts/report_workflow_failure.py "mark_applied.yml"
+
+      - name: Resolve failure tracker on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: python3 scripts/resolve_workflow_failure.py "mark_applied.yml"
