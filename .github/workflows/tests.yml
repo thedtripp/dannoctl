@@ -1,0 +1,68 @@
+name: bruce-bot Tests (inlined)
+
+# Inlined copy of bruce-bot's tests.yml (2026-07-25). bruce-bot's own tests.yml
+# is now a thin dispatcher: on every push/pull_request there it just calls
+# `gh workflow run` here with the commit to test, so the actual pytest/black/
+# ruff work runs on dannoctl's free public-repo Actions minutes instead of
+# bruce-bot's billed private minutes. The dispatcher call itself still costs
+# a few seconds of private minutes -- unavoidable, since GitHub can't deliver
+# a push/pull_request event fired in bruce-bot directly to another repo.
+#
+# Job logs here are public -- see daily_report.yml's note in this repo about
+# not printing resume/application content.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bruce_bot_ref:
+        description: "bruce-bot commit SHA or ref to test"
+        required: true
+        default: main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          ref: ${{ inputs.bruce_bot_ref }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Configure chester PAT
+        run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install chester
+        run: pip install "chester @ git+https://github.com/thedtripp/chester.git@7d71bf2"
+
+      - name: Run tests
+        run: python3 -m pytest -v
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          ref: ${{ inputs.bruce_bot_ref }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install black and ruff
+        run: pip install black ruff
+
+      - name: Check formatting
+        run: black --check --diff .
+
+      - name: Lint
+        run: ruff check .
