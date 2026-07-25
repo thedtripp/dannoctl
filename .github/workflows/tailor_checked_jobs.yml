@@ -47,13 +47,13 @@ jobs:
         password: ${{ secrets.PRIVATE_REPO_TOKEN }}
     defaults:
       run:
-        working-directory: repo
+        working-directory: .
     steps:
       - name: Trust all checkouts (container runs as a different uid than the runner)
         run: git config --global --add safe.directory '*'
 
       - name: Checkout bruce-bot
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: thedtripp/bruce-bot
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -79,7 +79,7 @@ jobs:
 
       - name: Checkout archie
         if: steps.count.outputs.has_jobs == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: thedtripp/archie
           ref: v0.2.1
@@ -93,7 +93,7 @@ jobs:
 
       - name: Install archie
         if: steps.count.outputs.has_jobs == 'true'
-        run: pip install -e "./archie-repo[observability]"
+        run: pip install -e "./repo/archie-repo[observability]"
 
       - name: Tailor checked jobs and open a Ready to Apply issue
         env:
@@ -104,12 +104,12 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: https://us.cloud.langfuse.com
-        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u tailor_checked_jobs.py
+        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u repo/tailor_checked_jobs.py
 
       - name: Commit job state to bruce-bot
         if: always()
         run: >-
-          scripts/git_commit_and_push.sh
+          repo/scripts/git_commit_and_push.sh
           "Mark checked jobs as considered (issue #${{ inputs.issue_number }})"
           job_state.json job_descriptions/ analytics/runs.jsonl all_keywords.txt
 
@@ -125,10 +125,10 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
+        run: python3 repo/scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
 
       - name: Resolve failure tracker on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
+        run: python3 repo/scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
