@@ -1,0 +1,239 @@
+name: Daily Job Pipeline (bruce-bot, inlined)
+
+# Inlined copy of bruce-bot's daily_report.yml (2026-07-25) -- runs bruce-bot's
+# actual fetch/report/board/alert steps here instead of dispatching them to
+# run in bruce-bot, so this bills as free public-repo Actions minutes instead
+# of private-repo minutes. bruce-bot's own copy of this workflow keeps only
+# workflow_dispatch as a manual fallback; this is now the real schedule.
+#
+# Known gap: bruce-bot's tailor_checked_jobs.yml/mark_applied.yml still run
+# in bruce-bot itself and share a `concurrency: bruce-bot-state-writer` group
+# there specifically to serialize pushes to shared state files (all_keywords.txt
+# is the one known to produce unresolvable merge conflicts, see
+# scripts/git_commit_and_push.sh's comments). Concurrency groups only
+# serialize within a single repo, so this workflow -- now running in a
+# different repo -- is no longer covered by that protection. Accepted risk;
+# a real conflict here needs manual resolution (git_commit_and_push.sh's
+# retry-rebase can't fix it, same as it couldn't before).
+#
+# Job logs here are public -- see this repo's README/CLAUDE.md before adding
+# any step that might print resume content, application details, or other
+# data bruce-bot's private-repo status was protecting.
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 19 * * *"
+    - cron: "0 21 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Fetch jobs
+        run: python3 fetch_jobs.py
+
+      - name: Upload fetched jobs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetched-jobs
+          path: repo/fetched_jobs.json
+          retention-days: 1
+
+      - name: Commit fetch state
+        if: always()
+        run: >-
+          scripts/git_commit_and_push.sh
+          "Update fetch state for $(date -u +%Y-%m-%dT%H:%M)"
+          analytics/runs.jsonl all_job_titles.txt all_locations.txt
+          analytics/geocode_cache.json analytics/job_fetch/posting_dedup.json
+          analytics/job_fetch/posting_time_histogram.json analytics/job_fetch/postings_raw.jsonl
+          company_schedule.json
+
+  report:
+    needs: fetch
+    if: >-
+      github.event.schedule == '0 13 * * *' ||
+      github.event.schedule == '0 19 * * *' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Checkout archie base resume
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/archie
+          ref: v0.2.1
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo/archie-repo
+          sparse-checkout: |
+            base_resume
+          sparse-checkout-cone-mode: false
+
+      - name: Configure chester PAT
+        run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Cache HF embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-model-sentence-transformers-all-MiniLM-L6-v2
+
+      - name: Install chester
+        run: pip install "chester[semantic] @ git+https://github.com/thedtripp/chester.git@7d71bf2"
+
+      - name: Download fetched jobs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fetched-jobs
+          path: repo
+
+      - name: Run daily report
+        env:
+          SKIP_EXCLUDED_REPORT: "1"
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          FETCHED_JOBS_PATH: fetched_jobs.json
+        run: python3 daily_report_unified.py
+
+      - name: Commit job state
+        if: always()
+        run: >-
+          scripts/git_commit_and_push.sh
+          "Update job state for $(date -u +%Y-%m-%dT%H:%M)"
+          job_state.json analytics/runs.jsonl
+
+  board:
+    needs: [fetch, report]
+    if: always() && needs.fetch.result == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+
+      - name: Checkout bruce (public frontend repo)
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo/frontend
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Download fetched jobs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fetched-jobs
+          path: repo
+
+      - name: Refresh job board snapshot
+        env:
+          FETCHED_JOBS_PATH: fetched_jobs.json
+          PREVIOUS_JOBS_PATH: frontend/data/jobs.json
+        run: python3 refresh_job_board.py
+
+      - name: Commit internal state to bruce-bot
+        if: always()
+        run: >-
+          scripts/git_commit_and_push.sh
+          "Update internal state for $(date -u +%Y-%m-%dT%H:%M)"
+          analytics/runs.jsonl
+
+      - name: Publish job board to bruce (public frontend repo)
+        run: |
+          mkdir -p frontend/css frontend/js frontend/img frontend/data frontend/analytics
+          cp docs/index.html frontend/
+          cp docs/analytics/index.html frontend/analytics/
+          cp docs/css/style.css frontend/css/
+          cp docs/js/app.js frontend/js/
+          cp docs/js/analytics.js frontend/js/
+          cp docs/img/bruce_logo.png frontend/img/
+          cp docs/img/favicon.png frontend/img/
+          cp public_keywords_metadata.jsonl frontend/data/
+          cp company_info.jsonl frontend/data/
+          cp docs/data/jobs.json frontend/data/
+          cp analytics/job_fetch/posting_time_histogram.json frontend/data/
+          cp analytics/job_fetch/postings_raw.jsonl frontend/data/
+          cd frontend
+          ../scripts/git_commit_and_push.sh \
+            "Update job board for $(date -u +%Y-%m-%dT%H:%M)" \
+            index.html analytics/index.html css/style.css js/app.js js/analytics.js \
+            img/bruce_logo.png img/favicon.png \
+            data/jobs.json data/public_keywords_metadata.jsonl data/company_info.jsonl \
+            data/posting_time_histogram.json data/postings_raw.jsonl
+
+  alert:
+    needs: [fetch, report, board]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+
+      - name: Report failure
+        if: contains(needs.*.result, 'failure')
+        env:
+          # gh infers the target repo from repo/'s git remote (bruce-bot), not
+          # from this token's scope -- but the token still needs Issues:
+          # Read-and-write on bruce-bot for that call to succeed. The default
+          # GITHUB_TOKEN is scoped to dannoctl and can't create issues there.
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: python3 scripts/report_workflow_failure.py "daily_report.yml"
+
+      - name: Resolve failure tracker on success
+        if: "!contains(needs.*.result, 'failure')"
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: python3 scripts/resolve_workflow_failure.py "daily_report.yml"
