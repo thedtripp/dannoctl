@@ -105,7 +105,8 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: https://us.cloud.langfuse.com
-        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u repo/tailor_checked_jobs.py
+        working-directory: repo
+        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u tailor_checked_jobs.py
 
       - name: Commit job state to bruce-bot
         if: always()
@@ -127,10 +128,12 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 repo/scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
+        working-directory: repo
+        run: python3 scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
 
       - name: Resolve failure tracker on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 repo/scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
+        working-directory: repo
+        run: python3 scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
