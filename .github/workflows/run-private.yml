@@ -1,0 +1,26 @@
+name: Run Private Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_workflow:
+        description: "bruce-bot workflow to trigger"
+        required: true
+        type: choice
+        options:
+          - daily_report.yml
+          - publish_frontend.yml
+          - e2e_nightly.yml
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger bruce-bot workflow
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: |
+          gh workflow run "${{ inputs.target_workflow }}" \
+            --repo thedtripp/bruce-bot \
+            --ref main
