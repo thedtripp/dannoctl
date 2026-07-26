@@ -1,0 +1,36 @@
+name: Cleanup Old Runs
+
+# Job logs here are public, so run history shouldn't accumulate indefinitely.
+# Daily sweep that deletes this repo's own completed workflow runs (and their
+# logs) once they're more than 24 hours old, leaving a short window to check
+# a run before it's gone. Uses the built-in GITHUB_TOKEN (actions: write) --
+# no new secrets. Only ever touches this repo (dannoctl); bruce-bot is
+# private and isn't in scope here.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete completed runs older than 24 hours
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cutoff=$(date -u -d '24 hours ago' +%s)
+          deleted=0
+          while IFS=$'\t' read -r id created; do
+            created_ts=$(date -u -d "$created" +%s)
+            if [ "$created_ts" -lt "$cutoff" ]; then
+              gh run delete "$id" --repo "$GITHUB_REPOSITORY" && deleted=$((deleted + 1)) || true
+            fi
+          done < <(gh run list --repo "$GITHUB_REPOSITORY" --limit 500 \
+            --json databaseId,createdAt,status \
+            --jq '.[] | select(.status == "completed") | [.databaseId, .createdAt] | @tsv')
+          echo "Deleted $deleted run(s) older than 24 hours."
