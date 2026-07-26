@@ -50,10 +50,9 @@ jobs:
             https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git \
             archie-repo
           cd archie-repo
-          git sparse-checkout init --cone
+          git sparse-checkout init --no-cone
           git sparse-checkout set base_resume
           git -c advice.detachedHead=false checkout --quiet v0.2.1
-          sparse-checkout-cone-mode: false
 
       - name: Configure chester PAT
         run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
