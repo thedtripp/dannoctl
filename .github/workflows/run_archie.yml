@@ -1,26 +1,26 @@
-name: Tailor Resumes for Checked Jobs (bruce-bot, inlined)
+name: Run archie for Checked dannoctls (bruce-bot, inlined)
 
 # Inlined copy of bruce-bot's tailor_checked_jobs.yml (2026-07-25) -- runs on
 # dannoctl's free public-repo Actions minutes instead of bruce-bot's billed
 # private minutes. bruce-bot's own copy is now a thin dispatcher on
 # issues:closed -- GitHub can't deliver that event to another repo directly,
-# so it does the "Job Report --" title gate itself and just relays the
-# issue number.
+# so it does its own title gate itself and just relays the issue number.
 #
 # Shares the bruce-bot-state-writer concurrency group with daily_report.yml
-# and mark_applied.yml, now that all three run in this repo again.
+# and mark_considered.yml, now that all three run in this repo again.
 #
 # Requires PRIVATE_REPO_TOKEN to have Contents:Read-and-write AND
 # Packages:Read-only on thedtripp/archie (the latter to pull the
 # ghcr.io/thedtripp/archie-ci container image below) -- a broader grant than
 # daily_report.yml/e2e_nightly.yml needed, since this is the one workflow
-# that actually pushes tailored-resume output back to archie.
+# that actually pushes archie's output back to its repo.
 #
 # ANTHROPIC_API_KEY/LANGFUSE_* are separate secrets from PRIVATE_REPO_TOKEN
 # (not GitHub PATs) -- copy the same values bruce-bot already has.
 #
-# Job logs here are public -- the tailoring script itself only prints
-# progress, not resume/job content, per daily_report.yml's existing note.
+# Job logs here are public -- the archie run itself only prints progress,
+# not any per-entry detail, per daily_report.yml's existing note. Keep step
+# names/comments here generic.
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tailor:
+  archie:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/thedtripp/archie-ci:v0.2.1
@@ -66,12 +66,12 @@ jobs:
         run: |
           gh issue view "${{ inputs.issue_number }}" --repo thedtripp/bruce-bot --json body -q .body > /tmp/issue_body.txt
 
-      - name: Count checked jobs
+      - name: Count checked dannoctls
         id: count
         working-directory: repo
         run: |
           count=$(python3 -m common.parse_checked_jobs < /tmp/issue_body.txt | wc -l)
-          echo "Found $count checked job(s)."
+          echo "Found $count checked entry/entries."
           if [ "$count" -gt 0 ]; then
             echo "has_jobs=true" >> "$GITHUB_OUTPUT"
           else
@@ -96,7 +96,7 @@ jobs:
         if: steps.count.outputs.has_jobs == 'true'
         run: pip install -e "./repo/archie-repo[observability]"
 
-      - name: Tailor checked jobs and open a Ready to Apply issue
+      - name: Run archie on checked dannoctls
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           ARCHIE_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -105,22 +105,14 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: https://us.cloud.langfuse.com
-          # tailor_checked_jobs.py reads GITHUB_REPOSITORY (auto-injected by
-          # Actions as thedtripp/dannoctl, since that's what's actually
-          # running this workflow now) to decide where to comment/create the
-          # "Ready to Apply" issue -- override it so that still targets
-          # bruce-bot, where the Job Report issue and its comment thread
-          # actually live.
-          GITHUB_REPOSITORY: thedtripp/bruce-bot
-        working-directory: repo
-        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u tailor_checked_jobs.py
+        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u repo/tailor_checked_jobs.py
 
-      - name: Commit job state to bruce-bot
+      - name: Commit dannoctl state to bruce-bot
         if: always()
         working-directory: repo
         run: >-
           scripts/git_commit_and_push.sh
-          "Mark checked jobs as considered (issue #${{ inputs.issue_number }})"
+          "Mark checked dannoctls as considered (issue #${{ inputs.issue_number }})"
           job_state.json job_descriptions/ analytics/runs.jsonl all_keywords.txt
 
       - name: Commit results to archie
@@ -128,19 +120,17 @@ jobs:
         working-directory: repo/archie-repo
         run: >-
           ../scripts/git_commit_and_push.sh
-          "Tailor resumes for jobs checked in bruce-bot issue #${{ inputs.issue_number }}"
+          "Run archie for dannoctls checked in bruce-bot issue #${{ inputs.issue_number }}"
           output/ analytics/
 
       - name: Report failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        working-directory: repo
-        run: python3 scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
+        run: python3 repo/scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
 
       - name: Resolve failure tracker on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        working-directory: repo
-        run: python3 scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
+        run: python3 repo/scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"

@@ -1,15 +1,14 @@
-name: Mark Applied Jobs (bruce-bot, inlined)
+name: Mark dannoctls Considered (bruce-bot, inlined)
 
 # Inlined copy of bruce-bot's mark_applied.yml (2026-07-25) -- runs on
 # dannoctl's free public-repo Actions minutes instead of bruce-bot's billed
 # private minutes. bruce-bot's own copy is now a thin dispatcher on
 # issues:closed -- GitHub can't deliver that event to another repo directly,
-# so it does the "Ready to Apply --" title gate itself (cheap, avoids
-# triggering a run here at all for irrelevant issue closes) and just relays
-# the issue number.
+# so it does its own title gate itself (cheap, avoids triggering a run here
+# at all for irrelevant issue closes) and just relays the issue number.
 #
 # Shares the bruce-bot-state-writer concurrency group with daily_report.yml
-# and tailor_checked_jobs.yml, now that all three run in this repo again.
+# and run_archie.yml, now that all three run in this repo again.
 
 on:
   workflow_dispatch:
@@ -27,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  mark-applied:
+  mark-considered:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,16 +50,16 @@ jobs:
         run: |
           gh issue view "${{ inputs.issue_number }}" --json body -q .body > /tmp/issue_body.txt
 
-      - name: Mark applied jobs in job state
+      - name: Update dannoctl state
         env:
           ISSUE_BODY_FILE: /tmp/issue_body.txt
         run: ISSUE_BODY="$(cat "$ISSUE_BODY_FILE")" python3 mark_applied.py
 
-      - name: Commit job state
+      - name: Commit dannoctl state
         if: always()
         run: >-
           scripts/git_commit_and_push.sh
-          "Mark jobs applied from issue #${{ inputs.issue_number }}"
+          "Mark dannoctls considered from issue #${{ inputs.issue_number }}"
           job_state.json analytics/runs.jsonl
 
       - name: Report failure

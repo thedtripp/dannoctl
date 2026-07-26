@@ -9,7 +9,7 @@ name: bruce-bot Tests (inlined)
 # a push/pull_request event fired in bruce-bot directly to another repo.
 #
 # Job logs here are public -- see daily_report.yml's note in this repo about
-# not printing resume/application content.
+# keeping step names/comments generic.
 
 on:
   workflow_dispatch:

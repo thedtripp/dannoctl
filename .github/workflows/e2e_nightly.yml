@@ -9,7 +9,7 @@ name: Nightly E2E Report Test (bruce-bot, inlined)
 # concurrency/state-race risk like daily_report.yml has.
 #
 # Job logs here are public -- see daily_report.yml's note in this repo about
-# not printing resume/application content. This workflow does create a real
+# keeping step names/comments generic. This workflow does create a real
 # GitHub issue in bruce-bot (via PRIVATE_REPO_TOKEN) to verify structure --
 # that issue itself stays private, only this run's logs are public.
 
@@ -39,7 +39,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Checkout archie base resume
+      - name: Checkout archie base
         uses: actions/checkout@v7
         with:
           repository: thedtripp/archie
@@ -53,7 +53,7 @@ jobs:
       - name: Configure chester PAT
         run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
-      - name: Cache HF embedding model
+      - name: Cache chester embedding model
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
