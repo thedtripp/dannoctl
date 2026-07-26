@@ -52,7 +52,7 @@ jobs:
           python-version: "3.11"
 
       - name: Fetch dannoctls
-        run: python3 fetch_jobs.py
+        run: scripts/dispatch.sh fetch
 
       - name: Upload fetched dannoctls artifact
         uses: actions/upload-artifact@v4
@@ -127,8 +127,8 @@ jobs:
           SKIP_EXCLUDED_REPORT: "1"
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          FETCHED_JOBS_PATH: fetched_jobs.json
-        run: python3 daily_report_unified.py
+          FETCHED_DANNOCTLS_PATH: fetched_jobs.json
+        run: scripts/dispatch.sh report
 
       - name: Commit dannoctl state
         if: always()
@@ -171,9 +171,9 @@ jobs:
 
       - name: Refresh public board snapshot
         env:
-          FETCHED_JOBS_PATH: fetched_jobs.json
-          PREVIOUS_JOBS_PATH: frontend/data/jobs.json
-        run: python3 refresh_job_board.py
+          FETCHED_DANNOCTLS_PATH: fetched_jobs.json
+          PREVIOUS_DANNOCTLS_PATH: frontend/data/jobs.json
+        run: scripts/dispatch.sh board
 
       - name: Commit internal state to bruce-bot
         if: always()
@@ -231,10 +231,10 @@ jobs:
           # Read-and-write on bruce-bot for that call to succeed. The default
           # GITHUB_TOKEN is scoped to dannoctl and can't create issues there.
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/report_workflow_failure.py "daily_report.yml"
+        run: scripts/dispatch.sh report-failure "daily_report.yml"
 
       - name: Resolve failure tracker on success
         if: "!contains(needs.*.result, 'failure')"
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/resolve_workflow_failure.py "daily_report.yml"
+        run: scripts/dispatch.sh resolve-failure "daily_report.yml"

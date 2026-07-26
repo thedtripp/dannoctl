@@ -70,7 +70,7 @@ jobs:
         id: count
         working-directory: repo
         run: |
-          count=$(python3 -m common.parse_checked_jobs < /tmp/issue_body.txt | wc -l)
+          count=$(scripts/dispatch.sh parse-checked < /tmp/issue_body.txt | wc -l)
           echo "Found $count checked entry/entries."
           if [ "$count" -gt 0 ]; then
             echo "has_jobs=true" >> "$GITHUB_OUTPUT"
@@ -105,7 +105,7 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: https://us.cloud.langfuse.com
-        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" python3 -u repo/tailor_checked_jobs.py
+        run: ISSUE_BODY="$(cat /tmp/issue_body.txt)" repo/scripts/dispatch.sh archie
 
       - name: Commit dannoctl state to bruce-bot
         if: always()
@@ -127,10 +127,10 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 repo/scripts/report_workflow_failure.py "tailor_checked_jobs.yml"
+        run: repo/scripts/dispatch.sh report-failure "tailor_checked_jobs.yml"
 
       - name: Resolve failure tracker on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 repo/scripts/resolve_workflow_failure.py "tailor_checked_jobs.yml"
+        run: repo/scripts/dispatch.sh resolve-failure "tailor_checked_jobs.yml"

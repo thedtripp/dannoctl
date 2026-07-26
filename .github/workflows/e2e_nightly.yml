@@ -65,5 +65,5 @@ jobs:
       - name: Run nightly E2E test
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          BASE_RESUME_DIR: ${{ github.workspace }}/repo/archie-repo/base_resume
-        run: python3 scripts/e2e_nightly_test.py
+          ARCHIE_BASE_DIR: ${{ github.workspace }}/repo/archie-repo/base_resume
+        run: scripts/dispatch.sh e2e

@@ -53,7 +53,7 @@ jobs:
       - name: Update dannoctl state
         env:
           ISSUE_BODY_FILE: /tmp/issue_body.txt
-        run: ISSUE_BODY="$(cat "$ISSUE_BODY_FILE")" python3 mark_applied.py
+        run: ISSUE_BODY="$(cat "$ISSUE_BODY_FILE")" scripts/dispatch.sh mark
 
       - name: Commit dannoctl state
         if: always()
@@ -66,10 +66,10 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/report_workflow_failure.py "mark_applied.yml"
+        run: scripts/dispatch.sh report-failure "mark_applied.yml"
 
       - name: Resolve failure tracker on success
         if: success()
         env:
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
-        run: python3 scripts/resolve_workflow_failure.py "mark_applied.yml"
+        run: scripts/dispatch.sh resolve-failure "mark_applied.yml"
