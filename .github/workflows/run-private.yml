@@ -1,5 +1,12 @@
 name: Run Private Workflow
 
+# daily_report.yml and e2e_nightly.yml were removed from bruce-bot entirely
+# (2026-07-25) -- their schedules and real logic now live only in this repo's
+# daily_report.yml/e2e_nightly.yml, so there's nothing left in bruce-bot for
+# this to dispatch. publish_frontend.yml is the only bruce-bot workflow still
+# unmigrated (low-volume, triggers on manual docs/ pushes), so it's the only
+# option left here.
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,9 +15,7 @@ on:
         required: true
         type: choice
         options:
-          - daily_report.yml
           - publish_frontend.yml
-          - e2e_nightly.yml
 
 jobs:
   dispatch:
