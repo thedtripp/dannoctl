@@ -94,15 +94,19 @@ jobs:
           python-version: "3.11"
 
       - name: Checkout archie base
-        uses: actions/checkout@v7
-        with:
-          repository: thedtripp/archie
-          ref: v0.2.1
-          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          path: repo/archie-repo
-          sparse-checkout: |
-            base_resume
-          sparse-checkout-cone-mode: false
+        # actions/checkout's init+fetch+checkout sequence echoes the target
+        # commit's subject line ("HEAD is now at ...") into this public log
+        # for any detached-HEAD (tag/SHA) ref -- no input suppresses it. A
+        # quiet manual clone + sparse-checkout avoids that while keeping the
+        # same base_resume-only working tree.
+        run: |
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.1 --no-checkout \
+            https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git \
+            archie-repo
+          cd archie-repo
+          git sparse-checkout init --no-cone
+          git sparse-checkout set base_resume
+          git -c advice.detachedHead=false checkout --quiet v0.2.1
 
       - name: Configure chester PAT
         run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"

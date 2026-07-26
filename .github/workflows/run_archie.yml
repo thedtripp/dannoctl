@@ -80,13 +80,16 @@ jobs:
 
       - name: Checkout archie
         if: steps.count.outputs.has_jobs == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: thedtripp/archie
-          ref: v0.2.1
-          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          path: repo/archie-repo
-          fetch-depth: 0
+        # actions/checkout's init+fetch+checkout sequence always echoes the
+        # target commit's subject line ("HEAD is now at ...") plus every
+        # branch/tag name on the remote when fetch-depth is 0 -- both leak
+        # into this public log. A quiet, shallow, single-ref clone avoids
+        # both; archie doesn't need history beyond this tag (no
+        # setuptools_scm or runtime git usage).
+        run: >-
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.1
+          https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git
+          repo/archie-repo
 
       - name: Allow pip to fetch the private chester dependency
         if: steps.count.outputs.has_jobs == 'true'
