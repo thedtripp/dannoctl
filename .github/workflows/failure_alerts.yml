@@ -1,0 +1,57 @@
+name: Pipeline Failure Alerts
+
+# Opens one persistent "⚠️ <workflow> Failures" issue in THIS repo when a
+# scheduled daily_report.yml / e2e_nightly.yml run fails, comments on it for
+# each repeat failure, and closes it on the next successful run (same
+# pattern as bruce-bot's E2E/daily_report failure trackers).
+#
+# Why here and not bruce-bot: the bruce-bot tracker is written with
+# PRIVATE_REPO_TOKEN, the owner's own PAT, so GitHub treats every update as
+# the owner's own activity and sends no notification (bruce-bot#491 got 8
+# failure comments 2026-10-07..09, nobody was pinged). The built-in
+# GITHUB_TOKEN posts as github-actions[bot], which does notify -- but it can
+# only write to this repo. So the issue is public, and carries only things
+# that are already public: workflow name, run link, failed job names (from
+# this repo's YAML), conclusion, timestamps. See .github/scripts/failure_alert.py.
+#
+# Deliberately independent of PRIVATE_REPO_TOKEN and of bruce-bot's
+# scripts: it still alerts when that token has expired or bruce-bot's code
+# is what broke. One tiny job per pipeline run (~10s).
+#
+# `workflows:` matches the workflows' `name:` fields, not file names --
+# renaming either workflow silently breaks this. test_failure_alert.py
+# checks they still match.
+
+on:
+  workflow_run:
+    workflows:
+      - "Daily dannoctl Pipeline (bruce-bot, inlined)"
+      - "Nightly E2E Report Test (bruce-bot, inlined)"
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  alert:
+    # Only conclusions that can open (scheduled failure) or close (any
+    # success) a tracker; skip the runner entirely otherwise.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' ||
+      (github.event.workflow_run.event == 'schedule' &&
+       contains(fromJSON('["failure", "timed_out", "startup_failure"]'), github.event.workflow_run.conclusion))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Update failure tracker
+        env:
+          ALERT_TOKEN: ${{ github.token }}
+          ALERT_MENTION: ${{ github.repository_owner }}
+        run: python3 .github/scripts/failure_alert.py

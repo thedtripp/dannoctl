@@ -55,3 +55,29 @@ If a private repo shows nonzero `net` minutes for workflows that are supposed
 to be inlined here instead, check that repo's workflow file still has its
 `schedule:`/event trigger removed (thin dispatchers should only have
 `workflow_dispatch` and, where unavoidable, a cheap gate-check job).
+
+## Failure alerts
+
+[`failure_alerts.yml`](.github/workflows/failure_alerts.yml) runs after every
+`daily_report.yml` / `e2e_nightly.yml` run (`workflow_run: completed`). When a
+**scheduled** run fails it opens one issue in this repo, `⚠️ <workflow>.yml Failures`,
+that @-mentions the repo owner. Each later failure adds a comment to that issue, and the
+next successful run (scheduled or manual) closes it. Cancelled runs are ignored.
+
+- **Why this repo and not bruce-bot:** bruce-bot's tracker is written with
+  `PRIVATE_REPO_TOKEN`, the owner's own PAT, and GitHub never notifies you about
+  your own activity. The built-in `GITHUB_TOKEN` posts as `github-actions[bot]`, so
+  its issues do send notifications, but that token can only write to this repo.
+- **Public-safe:** the issue holds only the workflow name, run link, failed job names,
+  conclusion, and timestamps, all of which are already public. Don't extend it with
+  logs or anything read from bruce-bot.
+- **No new secrets:** it doesn't use `PRIVATE_REPO_TOKEN` or check out bruce-bot,
+  so it still alerts when that token expires.
+- Logic lives in [`.github/scripts/failure_alert.py`](.github/scripts/failure_alert.py)
+  (stdlib only). To test it:
+
+  ```bash
+  python3 -m unittest discover -s .github/scripts -v
+  # dry run against a saved workflow_run payload (prints writes instead of sending them):
+  python3 .github/scripts/failure_alert.py --dry-run --event-path event.json
+  ```
