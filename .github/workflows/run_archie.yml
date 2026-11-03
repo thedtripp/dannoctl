@@ -41,7 +41,7 @@ jobs:
   archie:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/thedtripp/archie-ci:v0.2.1
+      image: ghcr.io/thedtripp/archie-ci:v0.2.2
       credentials:
         username: thedtripp
         password: ${{ secrets.PRIVATE_REPO_TOKEN }}
