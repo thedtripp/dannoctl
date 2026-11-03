@@ -87,7 +87,7 @@ jobs:
         # both; archie doesn't need history beyond this tag (no
         # setuptools_scm or runtime git usage).
         run: >-
-          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.1
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.2
           https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git
           repo/archie-repo
 
