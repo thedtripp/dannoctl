@@ -67,6 +67,7 @@ jobs:
           scripts/git_commit_and_push.sh
           "Update fetch state for $(date -u +%Y-%m-%dT%H:%M)"
           analytics/runs.jsonl analytics/fetch_health_daily.json analytics/company_health.json all_job_titles.txt all_locations.txt
+          analytics/funnel_daily.json analytics/company_activity.json analytics/dropped_sample.json
           analytics/geocode_cache.json analytics/job_fetch/posting_dedup.json
           analytics/job_fetch/posting_time_histogram.json analytics/job_fetch/postings_raw.jsonl
           company_schedule.json
@@ -139,7 +140,7 @@ jobs:
         run: >-
           scripts/git_commit_and_push.sh
           "Update state for $(date -u +%Y-%m-%dT%H:%M)"
-          job_state.json analytics/runs.jsonl
+          job_state.json analytics/runs.jsonl analytics/outcomes_daily.json analytics/interested_companies.json
 
   board:
     needs: [fetch, report]
