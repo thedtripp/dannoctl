@@ -51,7 +51,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install database driver (dewey dual-write, KAN-165)
+        run: pip install "psycopg[binary]>=3.1"
+
       - name: Fetch dannoctls
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: scripts/dispatch.sh fetch
 
       - name: Upload fetched dannoctls artifact
@@ -121,6 +126,9 @@ jobs:
       - name: Install chester
         run: pip install "chester[semantic] @ git+https://github.com/thedtripp/chester.git@7d71bf2"
 
+      - name: Install database driver (dewey dual-write, KAN-165)
+        run: pip install "psycopg[binary]>=3.1"
+
       - name: Download fetched dannoctls artifact
         uses: actions/download-artifact@v4
         with:
@@ -129,6 +137,7 @@ jobs:
 
       - name: Run daily report
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SKIP_EXCLUDED_REPORT: "1"
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

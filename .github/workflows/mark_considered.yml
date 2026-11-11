@@ -50,8 +50,12 @@ jobs:
         run: |
           gh issue view "${{ inputs.issue_number }}" --json body -q .body > /tmp/issue_body.txt
 
+      - name: Install database driver (dewey dual-write, KAN-165)
+        run: pip install "psycopg[binary]>=3.1"
+
       - name: Update dannoctl state
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ISSUE_BODY_FILE: /tmp/issue_body.txt
         run: ISSUE_BODY="$(cat "$ISSUE_BODY_FILE")" scripts/dispatch.sh mark
 

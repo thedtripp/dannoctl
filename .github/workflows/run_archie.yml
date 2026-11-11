@@ -99,8 +99,13 @@ jobs:
         if: steps.count.outputs.has_jobs == 'true'
         run: pip install -e "./repo/archie-repo[observability]"
 
+      - name: Install database driver (dewey dual-write, KAN-165)
+        if: steps.count.outputs.has_jobs == 'true'
+        run: pip install "psycopg[binary]>=3.1"
+
       - name: Run archie on checked dannoctls
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           ARCHIE_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
