@@ -121,7 +121,7 @@ jobs:
         run: >-
           scripts/git_commit_and_push.sh
           "Mark checked dannoctls as considered (issue #${{ inputs.issue_number }})"
-          job_state.json job_descriptions/ analytics/runs.jsonl all_keywords.txt
+          job_state.json profiles/ job_descriptions/ analytics/runs.jsonl all_keywords.txt
 
       - name: Commit results to archie
         if: always() && steps.count.outputs.has_jobs == 'true'

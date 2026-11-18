@@ -149,7 +149,7 @@ jobs:
         run: >-
           scripts/git_commit_and_push.sh
           "Update state for $(date -u +%Y-%m-%dT%H:%M)"
-          job_state.json analytics/runs.jsonl analytics/outcomes_daily.json analytics/interested_companies.json
+          job_state.json profiles/ analytics/runs.jsonl analytics/outcomes_daily.json analytics/interested_companies.json
 
   board:
     needs: [fetch, report]

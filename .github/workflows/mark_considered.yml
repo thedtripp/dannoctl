@@ -64,7 +64,7 @@ jobs:
         run: >-
           scripts/git_commit_and_push.sh
           "Mark dannoctls considered from issue #${{ inputs.issue_number }}"
-          job_state.json analytics/runs.jsonl analytics/apply_latency.json
+          job_state.json profiles/ analytics/runs.jsonl analytics/apply_latency.json
 
       - name: Report failure
         if: failure()
