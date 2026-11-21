@@ -77,13 +77,17 @@ jobs:
         run: scripts/dispatch.sh review fetch "$ISSUE"
 
       - name: Install analysis dependency
-        run: pip install --quiet "anthropic==2.12.0"
+        run: pip install --quiet "anthropic==2.12.0" "langfuse==3.14.6"
 
       - name: Analyze
         # Plain Python making one small API call per posting with no tools; it
-        # only needs ANTHROPIC_API_KEY, not the repo token.
+        # only needs ANTHROPIC_API_KEY, not the repo token. The Langfuse keys
+        # only let it write token-count traces; unset, tracking is skipped.
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: https://us.cloud.langfuse.com
         run: scripts/dispatch.sh review analyze
 
       - name: Publish
