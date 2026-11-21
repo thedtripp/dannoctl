@@ -1,0 +1,121 @@
+name: Review (bruce-bot, inlined)
+
+# Runs bruce-bot's unattended report review on free public-repo minutes.
+# daily_report.yml dispatches it once a new report exists; it can also be run
+# by hand with an issue number (dry_run only comments, never touches boxes).
+#
+# Job logs here are public: every step prints counts only, and the analysis
+# step's output goes to a file that is never printed. That step gets only
+# ANTHROPIC_API_KEY (no PRIVATE_REPO_TOKEN, no git credentials), runs in a
+# clean directory, and is limited to reading that directory and writing one
+# file, because the text it reads is untrusted. Everything that touches the
+# private repos happens in the steps before and after it.
+#
+# REVIEW_AUTO_CLOSE (repo variable, unset = off) makes the last step close the
+# issue after checking its boxes. Closing is what starts the next stage, so
+# leave it off until the output has been reviewed by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "bruce-bot issue number to review"
+        required: true
+      dry_run:
+        description: "Comment only; do not check boxes or close"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ISSUE: ${{ inputs.issue_number }}
+      REVIEW_DIR: ${{ github.workspace }}/review
+      ARCHIE_DIR: ${{ github.workspace }}/archie-repo
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Checkout archie base
+        # Quiet clone, then the .git directory (which holds the token in its
+        # remote URL) is deleted; see daily_report.yml's note on why not
+        # actions/checkout.
+        working-directory: ${{ github.workspace }}
+        run: |
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.4 --no-checkout \
+            https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git \
+            archie-repo
+          cd archie-repo
+          git sparse-checkout init --no-cone
+          git sparse-checkout set base_resume
+          git -c advice.detachedHead=false checkout --quiet v0.2.4
+          rm -rf .git
+
+      - name: Fetch
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh review fetch "$ISSUE"
+
+      - name: Stage
+        run: scripts/dispatch.sh review stage
+
+      - name: Install analysis tool
+        working-directory: ${{ github.workspace }}
+        run: npm install --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/cli" @anthropic-ai/claude-code@2.1.193
+
+      - name: Analyze
+        working-directory: ${{ github.workspace }}/review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISABLE_AUTOUPDATER: "1"
+        run: |
+          rc=0
+          "$RUNNER_TEMP/cli/node_modules/.bin/claude" -p "$(cat PROMPT.md)" \
+            --model claude-sonnet-5-5 \
+            --permission-mode dontAsk \
+            --allowedTools "Read" "Write(work/verdicts.json)" "Edit(work/verdicts.json)" "Bash(python3 skill/scripts/show.py:*)" \
+            --max-turns 250 --max-budget-usd 10 \
+            --output-format json > "$RUNNER_TEMP/analysis.json" 2> "$RUNNER_TEMP/analysis.err" || rc=$?
+          jq -r '"turns \(.num_turns), cost $\(.total_cost_usd), \(.subtype)"' "$RUNNER_TEMP/analysis.json" 2>/dev/null || true
+          test "$rc" = 0 || { echo "analysis exited $rc"; exit 1; }
+          test -s work/verdicts.json || { echo "no verdicts written"; exit 1; }
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          REVIEW_DRY_RUN: ${{ inputs.dry_run }}
+          REVIEW_AUTO_CLOSE: ${{ vars.REVIEW_AUTO_CLOSE }}
+        run: scripts/dispatch.sh review publish "$ISSUE"
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh report-failure "review.yml"
+
+      - name: Resolve failure tracker on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh resolve-failure "review.yml"
