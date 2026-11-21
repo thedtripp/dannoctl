@@ -1,0 +1,106 @@
+name: Review (bruce-bot, inlined)
+
+# Runs bruce-bot's unattended report review on free public-repo minutes.
+# daily_report.yml dispatches it once a new report exists; it can also be run
+# by hand with an issue number (dry_run only comments, never touches boxes).
+#
+# Job logs here are public: every step prints counts only. The analysis step
+# is a small Python program that sends one posting at a time to the model with
+# no tools and only ANTHROPIC_API_KEY in its environment, so text it reads is
+# only ever treated as data. Everything that touches the private repos happens
+# in the steps before and after it.
+#
+# REVIEW_AUTO_CLOSE (repo variable, unset = off) makes the last step close the
+# issue after checking its boxes. Closing is what starts the next stage, so
+# leave it off until the output has been reviewed by hand.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "bruce-bot issue number to review"
+        required: true
+      dry_run:
+        description: "Comment only; do not check boxes or close"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ISSUE: ${{ inputs.issue_number }}
+      REVIEW_DIR: ${{ github.workspace }}/review
+      ARCHIE_DIR: ${{ github.workspace }}/archie-repo
+    defaults:
+      run:
+        working-directory: repo
+    steps:
+      - name: Checkout bruce-bot
+        uses: actions/checkout@v7
+        with:
+          repository: thedtripp/bruce-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: repo
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Checkout archie base
+        # Quiet clone, then the .git directory (which holds the token in its
+        # remote URL) is deleted; see daily_report.yml's note on why not
+        # actions/checkout.
+        working-directory: ${{ github.workspace }}
+        run: |
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.4 --no-checkout \
+            https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git \
+            archie-repo
+          cd archie-repo
+          git sparse-checkout init --no-cone
+          git sparse-checkout set base_resume
+          git -c advice.detachedHead=false checkout --quiet v0.2.4
+          rm -rf .git
+
+      - name: Fetch
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh review fetch "$ISSUE"
+
+      - name: Install analysis dependency
+        run: pip install --quiet "anthropic==2.12.0"
+
+      - name: Analyze
+        # Plain Python making one small API call per posting with no tools; it
+        # only needs ANTHROPIC_API_KEY, not the repo token.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: scripts/dispatch.sh review analyze
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          REVIEW_DRY_RUN: ${{ inputs.dry_run }}
+          REVIEW_AUTO_CLOSE: ${{ vars.REVIEW_AUTO_CLOSE }}
+        run: scripts/dispatch.sh review publish "$ISSUE"
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh report-failure "review.yml"
+
+      - name: Resolve failure tracker on success
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: scripts/dispatch.sh resolve-failure "review.yml"
