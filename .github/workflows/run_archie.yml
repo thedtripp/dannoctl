@@ -107,13 +107,10 @@ jobs:
       - name: Install optional dependencies
         if: steps.count.outputs.has_jobs == 'true'
         continue-on-error: true
-        run: |
-          pip install "shelly[extract,answer] @ git+https://github.com/thedtripp/shelly.git@main"
-          playwright install --with-deps chromium
+        run: repo/scripts/dispatch.sh extras
 
       - name: Run archie on checked dannoctls
         env:
-          SHELLY_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           ARCHIE_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
