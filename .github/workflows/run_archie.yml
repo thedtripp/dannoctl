@@ -103,8 +103,17 @@ jobs:
         if: steps.count.outputs.has_jobs == 'true'
         run: pip install "psycopg[binary]>=3.1"
 
+      # Optional; a failure here is non-fatal.
+      - name: Install optional dependencies
+        if: steps.count.outputs.has_jobs == 'true'
+        continue-on-error: true
+        run: |
+          pip install "shelly[extract,answer] @ git+https://github.com/thedtripp/shelly.git@main"
+          playwright install --with-deps chromium
+
       - name: Run archie on checked dannoctls
         env:
+          SHELLY_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           ARCHIE_PAT: ${{ secrets.PRIVATE_REPO_TOKEN }}
