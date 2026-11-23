@@ -103,12 +103,6 @@ jobs:
         if: steps.count.outputs.has_jobs == 'true'
         run: pip install "psycopg[binary]>=3.1"
 
-      # Optional; a failure here is non-fatal.
-      - name: Install optional dependencies
-        if: steps.count.outputs.has_jobs == 'true'
-        continue-on-error: true
-        run: repo/scripts/dispatch.sh extras
-
       - name: Run archie on checked dannoctls
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
