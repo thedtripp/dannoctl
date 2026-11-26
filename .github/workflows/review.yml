@@ -62,13 +62,13 @@ jobs:
         # actions/checkout.
         working-directory: ${{ github.workspace }}
         run: |
-          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.9 --no-checkout \
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch v0.2.10 --no-checkout \
             https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/thedtripp/archie.git \
             archie-repo
           cd archie-repo
           git sparse-checkout init --no-cone
           git sparse-checkout set base_resume
-          git -c advice.detachedHead=false checkout --quiet v0.2.9
+          git -c advice.detachedHead=false checkout --quiet v0.2.10
           rm -rf .git
 
       - name: Fetch
