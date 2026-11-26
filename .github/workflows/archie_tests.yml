@@ -1,0 +1,69 @@
+name: archie Tests (inlined)
+
+# Inlined copy of archie's tests.yml. archie's own tests.yml is a thin
+# dispatcher: on every push/pull_request there it just calls `gh workflow run`
+# here with the commit to test, so the actual pytest/black/ruff work runs on
+# dannoctl's free public-repo Actions minutes instead of archie's billed
+# private minutes. Same pattern as tests.yml (bruce-bot's inlined copy).
+#
+# Job logs here are public -- see daily_report.yml's note in this repo about
+# keeping step names/comments generic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      archie_ref:
+        description: "archie commit SHA or ref to test"
+        required: true
+        default: main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: thedtripp/archie
+          ref: ${{ inputs.archie_ref }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Configure private dependency access
+        run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install dependencies
+        # [observability] included (not just [dev]) so the real
+        # langfuse-installed code path is exercised, not just its no-op
+        # fallback.
+        run: pip install -e ".[dev,observability]"
+
+      - name: Run tests
+        run: python3 -m pytest -v
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: thedtripp/archie
+          ref: ${{ inputs.archie_ref }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Configure private dependency access
+        run: git config --global url."https://x-access-token:${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Check formatting
+        run: black --check --diff .
+
+      - name: Lint
+        run: ruff check .
